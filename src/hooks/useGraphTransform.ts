@@ -24,10 +24,10 @@ export function useGraphTransform(graph: BlueprintGraph | null) {
       target: edge.target,
       type: 'smoothstep',
       animated: false,
-      style: { stroke: '#6366f1', strokeWidth: 2 },
+      style: { stroke: '#8B4462', strokeWidth: 2 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: '#6366f1',
+        color: '#8B4462',
       },
     }));
   }, [graph]);

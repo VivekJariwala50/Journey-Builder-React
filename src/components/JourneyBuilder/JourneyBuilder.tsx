@@ -210,14 +210,14 @@ export default function JourneyBuilder() {
             <Controls className="flow-controls" />
             <MiniMap
               className="flow-minimap"
-              nodeColor="#6366f1"
-              maskColor="rgba(15, 15, 20, 0.8)"
+              nodeColor="#8B4462"
+              maskColor="rgba(18, 8, 12, 0.85)"
             />
             <Background
               variant={BackgroundVariant.Dots}
               gap={20}
               size={1}
-              color="rgba(99, 102, 241, 0.15)"
+              color="rgba(139, 68, 98, 0.18)"
             />
             <Panel position="top-left" className="flow-panel-hint">
               <div className="hint-card">
