@@ -10,15 +10,13 @@ import {
   Panel,
   type Node,
 } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 import FormNode from '../FormNode/FormNode';
 import PrefillPanel from '../PrefillPanel/PrefillPanel';
 import { fetchBlueprintGraph } from '../../api/graph';
 import { useGraphTransform } from '../../hooks/useGraphTransform';
 import type { BlueprintGraph, FormNodeData } from '../../types';
-
-// CSS imports - imported in index.css via @xyflow/react
-import '@xyflow/react/dist/style.css';
 
 const nodeTypes = { formNode: FormNode };
 
@@ -38,14 +36,19 @@ export default function JourneyBuilder() {
   const [selectedNodeData, setSelectedNodeData] = useState<(FormNodeData & { graph: BlueprintGraph }) | null>(null);
 
   const { nodes: transformedNodes, edges: transformedEdges } = useGraphTransform(graph);
+
+  // BUG FIX: Use a single useNodesState + useEdgesState so onNodesChange/onEdgesChange
+  // stay in sync with the rendered state. Sync from transformedNodes/Edges via useEffect.
   const [nodes, setNodes, onNodesChange] = useNodesState(transformedNodes);
-  const [, , onEdgesChange] = useEdgesState(transformedEdges);
-  const [edges, setEdges] = useState(transformedEdges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(transformedEdges);
 
   useEffect(() => {
-    setNodes(transformedNodes);
-    setEdges(transformedEdges);
-  }, [transformedNodes, transformedEdges, setNodes]);
+    if (transformedNodes.length > 0) setNodes(transformedNodes);
+  }, [transformedNodes, setNodes]);
+
+  useEffect(() => {
+    if (transformedEdges.length > 0) setEdges(transformedEdges);
+  }, [transformedEdges, setEdges]);
 
   useEffect(() => {
     const load = async () => {
@@ -64,20 +67,17 @@ export default function JourneyBuilder() {
     load();
   }, []);
 
-  const onNodeClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      // Cast through unknown to avoid TS incompatibility
-      const raw = node.data as unknown;
-      const nodeData = raw as FormNodeData & { graph: BlueprintGraph };
-      setSelectedNodeData(nodeData);
-    },
-    []
-  );
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    const raw = node.data as unknown;
+    const nodeData = raw as FormNodeData & { graph: BlueprintGraph };
+    setSelectedNodeData(nodeData);
+  }, []);
 
   const handleUpdateMapping = useCallback(
     (nodeId: string, newMapping: Record<string, NewMapping>) => {
       if (!graph) return;
 
+      // Update the graph model
       const updatedGraph: BlueprintGraph = {
         ...graph,
         nodes: graph.nodes.map((n) =>
@@ -88,41 +88,31 @@ export default function JourneyBuilder() {
       };
       setGraph(updatedGraph);
 
+      // Keep selected node panel in sync
       if (selectedNodeData?.component_key === nodeId) {
         setSelectedNodeData((prev) =>
           prev ? { ...prev, input_mapping: newMapping, graph: updatedGraph } : null
         );
       }
 
+      // Update React Flow node data
       setNodes((nds) =>
         nds.map((n) => {
-          const currentData = n.data as unknown as Record<string, unknown>;
+          const d = n.data as unknown as Record<string, unknown>;
           if (n.id === nodeId) {
-            return {
-              ...n,
-              data: {
-                ...currentData,
-                input_mapping: newMapping,
-                graph: updatedGraph,
-              } as Record<string, unknown>,
-            };
+            return { ...n, data: { ...d, input_mapping: newMapping, graph: updatedGraph } as Record<string, unknown> };
           }
-          return {
-            ...n,
-            data: {
-              ...currentData,
-              graph: updatedGraph,
-            } as Record<string, unknown>,
-          };
+          return { ...n, data: { ...d, graph: updatedGraph } as Record<string, unknown> };
         })
       );
     },
     [graph, selectedNodeData, setNodes]
   );
 
-  const handleClosePanel = useCallback(() => {
-    setSelectedNodeData(null);
-  }, []);
+  const handleClosePanel = useCallback(() => setSelectedNodeData(null), []);
+
+  // When clicking outside a node (on empty canvas), deselect
+  const onPaneClick = useCallback(() => setSelectedNodeData(null), []);
 
   if (loading) {
     return (
@@ -150,10 +140,7 @@ export default function JourneyBuilder() {
           <p>To start the mock server:</p>
           <code>cd frontendchallengeserver &amp;&amp; npm start</code>
         </div>
-        <button
-          className="btn btn--primary"
-          onClick={() => window.location.reload()}
-        >
+        <button className="btn btn--primary" onClick={() => window.location.reload()}>
           Retry
         </button>
       </div>
@@ -178,11 +165,11 @@ export default function JourneyBuilder() {
         </div>
         <div className="header-actions">
           <div className="header-stat">
-            <span className="header-stat__value">{graph?.nodes.length || 0}</span>
+            <span className="header-stat__value">{graph?.nodes.length ?? 0}</span>
             <span className="header-stat__label">Forms</span>
           </div>
           <div className="header-stat">
-            <span className="header-stat__value">{graph?.edges.length || 0}</span>
+            <span className="header-stat__value">{graph?.edges.length ?? 0}</span>
             <span className="header-stat__label">Connections</span>
           </div>
           <div className="header-badge">
@@ -200,26 +187,28 @@ export default function JourneyBuilder() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
-            minZoom={0.3}
+            fitViewOptions={{ padding: 0.25 }}
+            minZoom={0.2}
             maxZoom={2}
+            nodesConnectable={false}
+            edgesReconnectable={false}
             proOptions={{ hideAttribution: true }}
           >
-            <Controls className="flow-controls" />
+            <Controls />
             <MiniMap
-              className="flow-minimap"
               nodeColor="#8B4462"
-              maskColor="rgba(18, 8, 12, 0.85)"
+              maskColor="rgba(251, 245, 247, 0.88)"
             />
             <Background
               variant={BackgroundVariant.Dots}
               gap={20}
               size={1}
-              color="rgba(139, 68, 98, 0.18)"
+              color="rgba(139, 68, 98, 0.15)"
             />
-            <Panel position="top-left" className="flow-panel-hint">
+            <Panel position="top-left">
               <div className="hint-card">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
